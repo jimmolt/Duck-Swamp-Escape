@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-title" content="Duck Swamp">
+<title>Duck Swamp Escape</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: players bar on top, the whole board scaled to fit in the middle, roll controls along the bottom. */
+:root {
+  --water: #1B7894;
+  --water-deep: #12596F;
+  --sand: #FFF3CF;
+  --sand-edge: #E5CF8E;
+  --cream: #F4E6B8;
+  --ink: #14301F;
+  --sun: #FFE9A8;
+  --coral: #E4572E;
+  --font-display: 'Fredoka', 'Arial Rounded MT Bold', ui-rounded, 'Helvetica Neue', system-ui, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--water);
+  color: var(--sand);
+  font-family: var(--font-display);
+  font-size: 18px;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+button:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+#app { height: 100%; display: flex; flex-direction: column; min-width: 0; }
+
+/* Players bar */
+#bar { background: var(--water-deep); margin: 0 -16px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top, 0px)); border-radius: 0 0 22px 22px; }
+#chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 8px; border-radius: 40px;
+  background: rgba(255, 243, 207, .14); color: var(--sand);
+  border: 3px solid transparent; min-width: 0;
+}
+.chip .cd { width: 36px; height: 32px; flex: none; position: relative; }
+.chip .cd i {
+  position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--ink); color: var(--sand); font-style: normal; font-size: 12px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
+.chip b { display: block; font-size: 20px; font-weight: 600; line-height: 1.1; white-space: nowrap; }
+.chip small { display: block; font-size: 15px; font-weight: 500; line-height: 1.1; opacity: .92; white-space: nowrap; }
+.chip.active { background: var(--sun); color: var(--ink); border-color: #fff; }
+.chip.active b { font-weight: 700; }
+
+/* Board */
+#boardWrap { flex: 1; min-height: 0; min-width: 0; position: relative; overflow: hidden; }
+#stage { position: absolute; left: 0; top: 0; width: 1780px; height: 920px; transform-origin: 0 0; }
+#stage .abs { position: absolute; }
+.tile {
+  position: absolute; width: 90px; height: 90px; border-radius: 24px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+}
+.tile svg { position: absolute; left: 0; top: 0; }
+.tile span {
+  position: relative; display: block; font-weight: 700; font-size: 38px; color: var(--ink); line-height: 1;
+}
+.isl { position: absolute; }
+.gator { position: absolute; }
+.label {
+  position: absolute; box-sizing: border-box; padding: 8px 10px; border-radius: 16px;
+  background: var(--sand); border: 3px solid var(--ink); color: var(--ink);
+  display: flex; flex-direction: column; gap: 2px; width: 140px;
+}
+.label b { font-weight: 700; line-height: 1; }
+.label small { font-size: 16px; font-weight: 600; line-height: 1.1; color: #26361F; }
+
+.token {
+  position: absolute; width: var(--s); height: var(--s); z-index: 5;
+  transform: translate(-50%, -50%);
+  transition: left .26s ease, top .26s ease, width .2s ease, height .2s ease;
+}
+.token .body { width: 100%; height: 100%; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .35)); }
+.token .badge {
+  position: absolute; right: -4%; bottom: -6%; width: 44%; height: 44%; border-radius: 50%;
+  background: var(--ink); color: var(--sand); font-weight: 700; font-size: calc(var(--s) * .27);
+  display: grid; place-items: center; line-height: 1; border: 2px solid var(--sand); box-sizing: border-box;
+}
+.token.active { z-index: 8; }
+.token.active::before {
+  content: ""; position: absolute; left: -22%; top: -22%; right: -22%; bottom: -22%; border-radius: 50%;
+  border: 5px solid #fff; animation: pulse 1.2s ease-in-out infinite;
+}
+.token .body.hop { animation: hop .26s ease-out; }
+@keyframes hop { 0% { transform: translateY(0); } 45% { transform: translateY(-20px) scale(1.12); } 100% { transform: translateY(0); } }
+@keyframes pulse { 0%, 100% { opacity: .95; transform: scale(1); } 50% { opacity: .35; transform: scale(1.12); } }
+
+/* Controls */
+#controls {
+  background: var(--water-deep); margin: 0 -16px; padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  border-radius: 22px 22px 0 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+#turn { display: flex; align-items: center; gap: 12px; flex: 1 1 260px; min-width: 0; }
+#turnDuck { width: 58px; height: 52px; flex: none; }
+#status { font-size: 24px; font-weight: 600; line-height: 1.15; min-width: 0; }
+#die {
+  width: 92px; height: 92px; flex: none; background: #fff; border: 5px solid var(--ink); border-radius: 22px;
+  box-sizing: border-box; padding: 10px; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); gap: 2px;
+}
+#die i { border-radius: 50%; background: transparent; }
+#die i.on { background: var(--ink); }
+#die.rolling { animation: wob .16s linear infinite; }
+@keyframes wob { 0% { transform: rotate(-9deg); } 50% { transform: rotate(9deg) translateY(-4px); } 100% { transform: rotate(-9deg); } }
+#roll {
+  min-width: 220px; height: 76px; border-radius: 38px; border: 5px solid var(--ink);
+  background: var(--sun); color: var(--ink); font-size: 34px; font-weight: 700; letter-spacing: 1px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+#roll:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+#roll:disabled { opacity: .45; cursor: default; box-shadow: 0 6px 0 var(--ink); }
+.tools { display: flex; gap: 10px; flex: 1 1 260px; justify-content: flex-end; }
+.tbtn {
+  min-height: 56px; padding: 0 20px; border-radius: 28px; border: 3px solid var(--sand);
+  background: transparent; color: var(--sand); font-size: 20px; font-weight: 600;
+}
+.tbtn[aria-pressed="false"] { opacity: .75; text-decoration: line-through; }
+
+/* Overlays */
+.overlay {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px;
+  background: rgba(8, 38, 50, .78); overflow-y: auto;
+}
+.card {
+  width: min(540px, 100%); box-sizing: border-box; border-radius: 30px; border: 6px solid var(--sand);
+  padding: 26px 28px 28px; text-align: center; color: var(--ink); background: var(--cream);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .4); animation: pop .28s ease-out;
+}
+@keyframes pop { 0% { transform: scale(.7) rotate(-4deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.card[data-tone="fwd"] { background: #7ED16A; }
+.card[data-tone="back"] { background: #F7D654; }
+.card[data-tone="jail"] { background: #B7C0C9; }
+.card[data-tone="gator"] { background: #E8806F; }
+.card[data-tone="sand"] { background: #C9A15C; }
+.card[data-tone="win"] { background: var(--sun); }
+.card h2 { margin: 0; font-size: 46px; line-height: 1.05; font-weight: 700; text-wrap: balance; }
+.card p { margin: 0; font-size: 26px; font-weight: 500; line-height: 1.25; text-wrap: balance; }
+.cardIcon { height: 110px; display: grid; place-items: center; }
+.btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.bigbtn {
+  min-height: 64px; padding: 0 30px; border-radius: 32px; border: 4px solid var(--ink);
+  background: var(--ink); color: var(--sand); font-size: 28px; font-weight: 700;
+}
+.bigbtn.alt { background: transparent; color: var(--ink); }
+
+#setup .card { background: var(--cream); gap: 14px; }
+#setup h1 { margin: 0; font-size: 56px; line-height: 1; font-weight: 700; text-wrap: balance; }
+#setup .sub { font-size: 24px; font-weight: 600; margin: 0; }
+#counts { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.cnt {
+  width: 64px; height: 64px; border-radius: 20px; border: 4px solid var(--ink); background: transparent;
+  color: var(--ink); font-size: 30px; font-weight: 700;
+}
+.cnt[aria-pressed="true"] { background: var(--ink); color: var(--sand); }
+#names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.nrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nrow .nd { width: 46px; height: 42px; flex: none; position: relative; }
+.nrow .nd i {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--ink); color: var(--sand); font-style: normal; font-size: 13px; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
+.nrow input {
+  flex: 1; min-width: 0; height: 52px; box-sizing: border-box; border-radius: 16px; border: 3px solid var(--ink);
+  background: #fff; color: var(--ink); font-family: inherit; font-size: 22px; font-weight: 600; padding: 0 12px;
+  -webkit-user-select: text; user-select: text;
+}
+
+#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+#confetti i { position: absolute; top: -20px; width: 12px; height: 18px; animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+@media (max-width: 700px) {
+  #names { grid-template-columns: minmax(0, 1fr); }
+  #setup h1 { font-size: 40px; }
+  .card h2 { font-size: 36px; }
+  .card p { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .token .body.hop, .token.active::before, #die.rolling, .card { animation: none; }
+  .token { transition: none; }
+  #confetti { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar"><div id="chips" role="list" aria-label="Players"></div></header>
+  <main id="boardWrap"><div id="stage" aria-label="Game board"></div></main>
+  <footer id="controls">
+    <div id="turn"><div id="turnDuck"></div><div id="status" role="status" aria-live="polite"></div></div>
+    <div id="die" role="img" aria-label="Die"></div>
+    <button id="roll" type="button">ROLL</button>
+    <div class="tools">
+      <button id="sound" class="tbtn" type="button" aria-pressed="true">Sound</button>
+      <button id="menu" class="tbtn" type="button">New game</button>
+    </div>
+  </footer>
+</div>
+
+<div id="setup" class="overlay">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+    <h1 id="setupTitle">Duck Swamp Escape</h1>
+    <p class="sub">How many ducks are playing?</p>
+    <div id="counts" role="group" aria-label="Number of players"></div>
+    <div id="names"></div>
+    <div class="btns"><button id="start" class="bigbtn" type="button">Start game</button></div>
+  </div>
+</div>
+
+<div id="modal" class="overlay" hidden>
+  <div class="card" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="cardIcon" id="mIcon"></div>
+    <h2 id="mTitle"></h2>
+    <p id="mText"></p>
+    <div class="btns" id="mBtns"></div>
+  </div>
+</div>
+<div id="confetti" aria-hidden="true"></div>
+
+<script>
+(function () {
+  'use strict';
+  var W = 1780, H = 920, R = 110;
+  var COLORS = ['#F2C230', '#F28C28', '#D64545', '#E87DB0', '#8F5BC9', '#3D7EDB', '#F7F7F2'];
+  var TILE_FILLS = ['#F26B6B', '#F6A04D', '#F7D654', '#7ED16A', '#6FB6F0', '#B89BEF'];
+  var QS = [7, 15, 24, 33, 41, 46];
+  var BOAT = 51;
+
+  var INK = '#14301F';
+  var $ = function (id) { return document.getElementById(id); };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- artwork ---------- */
+  function duckSVG(c) {
+    return '<svg viewBox="0 0 72 64" width="100%" height="100%" aria-hidden="true">' +
+      '<path d="M10 40 C10 28 22 26 34 28 C44 30 52 36 52 44 C52 54 40 58 28 58 C16 58 10 50 10 40 Z" fill="' + c + '" stroke="' + INK + '" stroke-width="3"/>' +
+      '<circle cx="46" cy="22" r="12" fill="' + c + '" stroke="' + INK + '" stroke-width="3"/>' +
+      '<path d="M56 20 L68 24 L56 29 Z" fill="#F28C28" stroke="' + INK + '" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<circle cx="49" cy="19" r="2.6" fill="' + INK + '"/>' +
+      '<path d="M18 42 C24 36 34 38 36 46 C30 50 22 50 18 42 Z" fill="#fff" fill-opacity=".45"/></svg>';
+  }
+  var PALM = '<path d="M104 68 C100 52 106 36 100 22" fill="none" stroke="#8A5A2B" stroke-width="7" stroke-linecap="round"/>' +
+    '<path d="M100 22 C82 8 62 14 52 28 C74 22 88 24 100 22 Z" fill="#2E8B3A" stroke="' + INK + '" stroke-width="2.5"/>' +
+    '<path d="M100 22 C118 8 138 14 148 28 C126 22 112 24 100 22 Z" fill="#2E8B3A" stroke="' + INK + '" stroke-width="2.5"/>' +
+    '<path d="M100 22 C90 4 108 -2 116 10 C108 12 104 16 100 22 Z" fill="#2E8B3A" stroke="' + INK + '" stroke-width="2.5"/>';
+  var BASE = '<ellipse cx="100" cy="74" rx="94" ry="24" fill="#F1DFA2" stroke="' + INK + '" stroke-width="3"/>' +
+    '<ellipse cx="100" cy="68" rx="76" ry="17" fill="#6CC24A" stroke="' + INK + '" stroke-width="3"/>';
+  var ISL = {
+    palm: BASE + PALM,
+    twin: BASE + '<g transform="translate(-34 14) scale(0.8)">' + PALM + '</g><g transform="translate(40 8) scale(0.9)">' + PALM + '</g>',
+    rock: BASE +
+      '<ellipse cx="72" cy="60" rx="22" ry="14" fill="#9AA6B2" stroke="' + INK + '" stroke-width="3"/>' +
+      '<ellipse cx="100" cy="54" rx="26" ry="18" fill="#B7C0C9" stroke="' + INK + '" stroke-width="3"/>' +
+      '<circle cx="136" cy="60" r="14" fill="#3E9E3E" stroke="' + INK + '" stroke-width="3"/>' +
+      '<circle cx="132" cy="56" r="3.5" fill="#F7A6C0"/><circle cx="141" cy="62" r="3.5" fill="#FFE9A8"/>'
+  };
+  function island(kind, x, cy, w) {
+    var h = Math.round(w * 106 / 200);
+    return '<div class="isl" style="left:' + x + 'px;top:' + (cy - Math.round(h / 2)) + 'px;width:' + w + 'px;height:' + h + 'px">' +
+      '<svg viewBox="0 -6 200 106" width="100%" height="100%" aria-hidden="true">' + ISL[kind] + '</svg></div>';
+  }
+  var GATOR = '<svg viewBox="0 0 160 56" width="100%" height="100%" aria-hidden="true">' +
+    '<ellipse cx="80" cy="47" rx="74" ry="6" fill="none" stroke="#BFE8F2" stroke-width="3" stroke-opacity=".7"/>' +
+    '<path d="M6 38 L30 33 C42 26 60 24 80 26 C110 28 130 32 156 30 C132 40 112 46 80 46 C60 48 40 46 30 44 Z" fill="#2B5E27" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round"/>' +
+    '<path d="M12 38 L15 43 L18 38 M21 37 L24 42 L27 36" fill="#fff" stroke="' + INK + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+    '<circle cx="44" cy="25" r="5.5" fill="#FFF3CF" stroke="' + INK + '" stroke-width="2.5"/><circle cx="45" cy="25" r="2.2" fill="' + INK + '"/>' +
+    '<circle cx="64" cy="25" r="3" fill="#3F8B39" stroke="' + INK + '" stroke-width="2"/>' +
+    '<circle cx="82" cy="26" r="3" fill="#3F8B39" stroke="' + INK + '" stroke-width="2"/>' +
+    '<circle cx="100" cy="28" r="3" fill="#3F8B39" stroke="' + INK + '" stroke-width="2"/></svg>';
+  function gator(x, y, w, flip) {
+    var h = Math.round(w * 56 / 160);
+    return '<div class="gator" style="left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px' + (flip ? ';transform:scaleX(-1)' : '') + '">' + GATOR + '</div>';
+  }
+  var SAND_SVG = '<svg viewBox="0 0 82 82" width="82" height="82" aria-hidden="true">' +
+    '<path d="M41 41 a4 4 0 0 1 8 0 a8 8 0 0 1 -16 0 a12 12 0 0 1 24 0 a16 16 0 0 1 -32 0 a20 20 0 0 1 40 0 a24 24 0 0 1 -48 0 a28 28 0 0 1 56 0" fill="none" stroke="#7A5522" stroke-width="3.5" stroke-linecap="round"/>' +
+    '<circle cx="41" cy="41" r="19" fill="#FFF3CF" stroke="#7A5522" stroke-width="3"/></svg>';
+  var BOAT_SVG = '<svg viewBox="0 0 220 150" width="150" height="102" role="img" aria-label="Escape boat">' +
+    '<path d="M10 92 L210 92 L184 134 C180 140 174 142 168 142 L52 142 C46 142 40 140 36 134 Z" fill="#E4572E" stroke="' + INK + '" stroke-width="4"/>' +
+    '<rect x="10" y="86" width="200" height="12" rx="4" fill="#FFE9A8" stroke="' + INK + '" stroke-width="3"/>' +
+    '<rect x="106" y="14" width="7" height="76" fill="' + INK + '"/>' +
+    '<path d="M114 16 L114 80 L172 80 Z" fill="#fff" stroke="' + INK + '" stroke-width="3"/>' +
+    '<path d="M104 24 L104 80 L56 80 Z" fill="#FFE9A8" stroke="' + INK + '" stroke-width="3"/>' +
+    '<path d="M113 14 L134 20 L113 26 Z" fill="#D64545" stroke="' + INK + '" stroke-width="2"/>' +
+    '<circle cx="64" cy="116" r="8" fill="#FFE9A8" stroke="' + INK + '" stroke-width="3"/>' +
+    '<circle cx="110" cy="116" r="8" fill="#FFE9A8" stroke="' + INK + '" stroke-width="3"/>' +
+    '<circle cx="156" cy="116" r="8" fill="#FFE9A8" stroke="' + INK + '" stroke-width="3"/></svg>';
+
+  function iconFor(type) {
+    var s = 'stroke="' + INK + '" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+    if (type === 'fwd') return '<svg viewBox="0 0 120 100" width="130" height="108" aria-hidden="true"><path d="M20 20 L56 50 L20 80" ' + s + '/><path d="M60 20 L96 50 L60 80" ' + s + '/></svg>';
+    if (type === 'back') return '<svg viewBox="0 0 120 100" width="130" height="108" aria-hidden="true"><path d="M100 20 L64 50 L100 80" ' + s + '/><path d="M60 20 L24 50 L60 80" ' + s + '/></svg>';
+    if (type === 'jail') return '<svg viewBox="0 0 140 100" width="150" height="108" aria-hidden="true"><rect x="10" y="8" width="120" height="84" rx="8" fill="#4A5560" stroke="' + INK + '" stroke-width="5"/>' +
+      [30, 54, 78, 102].map(function (x) { return '<rect x="' + (x - 4) + '" y="8" width="8" height="84" fill="#E3E8EE"/>'; }).join('') + '</svg>';
+    if (type === 'gator') return '<div style="width:190px;height:66px">' + GATOR + '</div>';
+    if (type === 'sand') return SAND_SVG.replace('width="82" height="82"', 'width="110" height="110"');
+    if (type === 'win') return '<div style="width:210px;height:143px">' + BOAT_SVG.replace('width="150" height="102"', 'width="100%" height="100%"') + '</div>';
+    return '';
+  }
+
+  /* ---------- board geometry ---------- */
+  var segs = [
+    { t: 'line', x0: 330, y0: 115, x1: 1450, y1: 115, len: 1120 },
+    { t: 'arc', cx: 1450, cy: 225, dir: 1, a0: -Math.PI / 2, len: Math.PI * R },
+    { t: 'line', x0: 1450, y0: 335, x1: 330, y1: 335, len: 1120 },
+    { t: 'arc', cx: 330, cy: 445, dir: -1, a0: -Math.PI / 2, len: Math.PI * R },
+    { t: 'line', x0: 330, y0: 555, x1: 1450, y1: 555, len: 1120 },
+    { t: 'arc', cx: 1450, cy: 665, dir: 1, a0: -Math.PI / 2, len: Math.PI * R },
+    { t: 'line', x0: 1450, y0: 775, x1: 330, y1: 775, len: 1120 }
+  ];
+  var total = 0;
+  segs.forEach(function (s) { total += s.len; });
+  var step = total / 50;
+  function where(d) {
+    var rest = d;
+    for (var k = 0; k < segs.length; k++) {
+      var s = segs[k];
+      if (rest <= s.len) {
+        if (s.t === 'line') {
+          var f = rest / s.len;
+          return { x: s.x0 + (s.x1 - s.x0) * f, y: s.y0 + (s.y1 - s.y0) * f, ang: 0 };
+        }
+        var th = s.a0 + s.dir * (rest / R);
+        var tx = s.dir === 1 ? -Math.sin(th) : Math.sin(th);
+        var ty = s.dir === 1 ? Math.cos(th) : -Math.cos(th);
+        return { x: s.cx + R * Math.cos(th), y: s.cy + R * Math.sin(th), ang: Math.atan2(ty, tx) * 180 / Math.PI };
+      }
+      rest -= s.len;
+    }
+    var l = segs[segs.length - 1];
+    return { x: l.x1, y: l.y1, ang: 0 };
+  }
+  var POS = [];
+  for (var i = 1; i <= 50; i++) POS[i] = where((i - 0.5) * step);
+
+  function buildStage() {
+    var h = '';
+    h += '<svg class="abs" style="left:0;top:0" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+      '<path d="M264 115 H1450 A110 110 0 0 1 1450 335 H330 A110 110 0 0 0 330 555 H1450 A110 110 0 0 1 1450 775 H290" fill="none" stroke="#FFF3CF" stroke-width="120" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M264 115 H1450 A110 110 0 0 1 1450 335 H330 A110 110 0 0 0 330 555 H1450 A110 110 0 0 1 1450 775 H290" fill="none" stroke="#E5CF8E" stroke-width="104" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    [[410, 225, 170], [1230, 225, 150], [1640, 440, 120], [1640, 40, 130]].forEach(function (a) { h += island('palm', a[0], a[1], a[2]); });
+    [[940, 225, 210], [900, 445, 190], [420, 665, 200], [1640, 660, 130]].forEach(function (a) { h += island('twin', a[0], a[1], a[2]); });
+    [[690, 225, 160], [400, 445, 120], [1190, 445, 160], [680, 665, 160], [1250, 665, 120], [1640, 210, 110]].forEach(function (a) { h += island('rock', a[0], a[1], a[2]); });
+    [[30, 320, 120, 0], [34, 570, 110, 1], [585, 208, 100, 1], [855, 210, 80, 0], [1146, 210, 80, 1], [1097, 428, 90, 0],
+     [430, 848, 140, 0], [790, 855, 150, 1], [1170, 846, 140, 0], [1520, 852, 130, 1], [1650, 320, 110, 1], [1650, 560, 110, 0]
+    ].forEach(function (a) { h += gator(a[0], a[1], a[2], a[3]); });
+
+    /* jail island */
+    h += '<div class="abs" style="left:520px;top:387px;width:340px;height:116px"><svg viewBox="0 0 340 116" width="340" height="116" aria-hidden="true">' +
+      '<ellipse cx="170" cy="86" rx="164" ry="28" fill="#F1DFA2" stroke="' + INK + '" stroke-width="3"/>' +
+      '<ellipse cx="170" cy="80" rx="142" ry="20" fill="#6CC24A" stroke="' + INK + '" stroke-width="3"/>' +
+      '<rect x="78" y="22" width="104" height="10" rx="3" fill="#2E363E" stroke="' + INK + '" stroke-width="2.5"/>' +
+      '<rect x="84" y="30" width="92" height="54" rx="4" fill="#4A5560" stroke="' + INK + '" stroke-width="3"/>' +
+      [96, 112, 128, 144, 160].map(function (x) { return '<rect x="' + x + '" y="32" width="6" height="50" fill="#D5DCE3"/>'; }).join('') +
+      '</svg><div class="label" style="left:192px;top:14px"><b style="font-size:30px">JAIL</b><small>Roll a 6 to get out!</small></div></div>';
+    /* gator pond */
+    h += '<div class="abs" style="left:900px;top:607px;width:340px;height:116px"><svg viewBox="0 0 340 116" width="340" height="116" aria-hidden="true">' +
+      '<ellipse cx="170" cy="86" rx="164" ry="28" fill="#F1DFA2" stroke="' + INK + '" stroke-width="3"/>' +
+      '<ellipse cx="170" cy="80" rx="142" ry="20" fill="#6CC24A" stroke="' + INK + '" stroke-width="3"/>' +
+      '<ellipse cx="130" cy="76" rx="96" ry="15" fill="#2E6B3A" stroke="' + INK + '" stroke-width="3"/>' +
+      '<path d="M50 78 L78 74 C98 64 128 64 146 70 L160 66 L180 58 L174 72 L180 86 L160 80 L146 86 C128 92 98 92 78 84 Z" fill="#8FD36E" stroke="' + INK + '" stroke-width="3"/>' +
+      '<circle cx="98" cy="68" r="4.5" fill="#FFF3CF" stroke="' + INK + '" stroke-width="2"/><circle cx="99" cy="68" r="2" fill="' + INK + '"/></svg>' +
+      '<div class="label" style="left:192px;top:14px"><b style="font-size:24px">GATOR POND</b><small>Eaten! Back to START</small></div></div>';
+    /* start pad */
+    h += '<div class="abs" style="left:24px;top:30px;width:240px;height:240px;box-sizing:border-box;border-radius:28px;background:#F4E6B8;border:6px solid #FFF3CF;display:flex;justify-content:center;padding-top:14px">' +
+      '<div style="font-size:40px;font-weight:700;color:' + INK + ';line-height:1">START</div></div>';
+    /* boat */
+    h += '<div class="abs" style="left:24px;top:680px;width:266px;height:188px;box-sizing:border-box;border-radius:28px;background:#2A9DB8;border:6px solid #FFF3CF;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px">' +
+      BOAT_SVG + '<div style="font-size:36px;font-weight:700;color:#FFF3CF;line-height:1">THE BOAT</div>' +
+      '<div style="font-size:18px;font-weight:600;color:#fff;line-height:1.1;text-align:center">First duck here escapes!</div></div>';
+    /* tiles */
+    for (var n = 1; n <= 50; n++) {
+      var p = POS[n], qs = QS.indexOf(n) >= 0, big = n % 10 === 0, a = Math.round(p.ang * 10) / 10;
+      h += '<div class="tile" style="left:' + (Math.round((p.x - 45) * 10) / 10) + 'px;top:' + (Math.round((p.y - 45) * 10) / 10) + 'px;background:' +
+        (qs ? '#C9A15C' : TILE_FILLS[(n - 1) % 6]) + ';border:' + (big ? 7 : 4) + 'px solid ' + (big ? '#fff' : INK) + ';transform:rotate(' + a + 'deg)">' +
+        (qs ? SAND_SVG : '') + '<span style="transform:rotate(' + (-a) + 'deg)">' + n + '</span></div>';
+    }
+    h += '<div id="tokens"></div>';
+    $('stage').innerHTML = h;
+  }
+
+  function fit() {
+    var wrap = $('boardWrap');
+    var w = wrap.clientWidth, hh = wrap.clientHeight;
+    if (!w || !hh) return;
+    var s = Math.min(w / W, hh / H);
+    var x = (w - W * s) / 2, y = (hh - H * s) / 2;
+    $('stage').style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  }
+
+  /* ---------- sound ---------- */
+  var actx = null, soundOn = true;
+  function ensureAudio() {
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) {}
+  }
+  function tone(f, d, type, v, delay, slide) {
+    if (!soundOn || !actx) return;
+    try {
+      var t = actx.currentTime + (delay || 0);
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(f, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+      g.gain.setValueAtTime(v || 0.15, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + d);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t); o.stop(t + d + 0.03);
+    } catch (e) {}
+  }
+  var sfx = {
+    roll: function () { for (var k = 0; k < 7; k++) tone(300 + Math.random() * 300, 0.05, 'square', 0.05, k * 0.1); },
+    hop: function () { tone(520, 0.09, 'sine', 0.14, 0, 760); },
+    good: function () { tone(660, 0.12, 'triangle', 0.16); tone(880, 0.18, 'triangle', 0.16, 0.1); },
+    bad: function () { tone(440, 0.14, 'triangle', 0.16); tone(330, 0.22, 'triangle', 0.16, 0.12); },
+    jail: function () { tone(150, 0.25, 'square', 0.1); tone(120, 0.3, 'square', 0.1, 0.18); },
+    gator: function () { tone(300, 0.5, 'sawtooth', 0.1, 0, 80); },
+    sand: function () { tone(260, 0.6, 'sine', 0.14, 0, 90); },
+    win: function () { [523, 659, 784, 1047].forEach(function (f, k) { tone(f, 0.28, 'triangle', 0.18, k * 0.14); }); }
+  };
+
+  /* ---------- cards ---------- */
+  var FWD = ['A friendly turtle gives you a ride!', 'A breeze fills your feathers!', 'You find a shortcut through the reeds!', 'A frog shows you the way!', 'Quack! A tailwind pushes you along!', 'A dragonfly guides you ahead!', 'You catch the lily pad express!'];
+  var BACK = ['You stopped to chase a butterfly.', 'Oops! You waddled the wrong way.', 'A slow snail is blocking the trail.', 'You dropped your snack and went back for it.', 'A big splash pushes you back.', 'A shiny pebble distracts you.', 'A muddy puddle slows you down.'];
+  var JAIL = ['A grumpy heron caught you quacking too loud!', 'You forgot to share the bread crumbs.', 'The swamp sheriff spotted you!', 'You waddled past the Keep Off the Reeds sign.', 'A beaver builder put a fence around you!', 'You got caught napping on the trail!'];
+  var GATOR_T = ['Snap! A gator was hiding under the lily pads!', 'Chomp! You swam too close to the pond!', 'A hungry gator lunges from the mud!', 'Splash! Those teeth are real!', 'The gator thought you looked tasty!', 'Yikes! A sneaky gator snapped at you!'];
+  var CARD_INFO = {
+    fwd: { title: 'Hop Forward!', tail: ' Move ahead 1 space.' },
+    back: { title: 'Slide Back!', tail: ' Move back 1 space.' },
+    jail: { title: 'Go to Jail!', tail: ' Roll a 6 to get out.' },
+    gator: { title: 'Gator Attack!', tail: ' Back to START!' }
+  };
+  function shuffle(a) {
+    for (var k = a.length - 1; k > 0; k--) { var j = Math.floor(Math.random() * (k + 1)); var t = a[k]; a[k] = a[j]; a[j] = t; }
+    return a;
+  }
+  function buildDeck() {
+    var d = [];
+    FWD.forEach(function (t) { d.push({ type: 'fwd', text: t }, { type: 'fwd', text: t }); });
+    BACK.forEach(function (t) { d.push({ type: 'back', text: t }, { type: 'back', text: t }); });
+    JAIL.forEach(function (t) { d.push({ type: 'jail', text: t }); });
+    GATOR_T.forEach(function (t) { d.push({ type: 'gator', text: t }); });
+    return shuffle(d);
+  }
+
+  /* ---------- state ---------- */
+  var state = { players: [], cur: 0, busy: true, over: false, deck: [] };
+  var lastNames = [];
+  function cur() { return state.players[state.cur]; }
+
+  function locKey(p) { return p.jailed ? 'jail' : p.pos === 0 ? 'start' : p.pos >= BOAT ? 'boat' : 't' + p.pos; }
+
+  function layout() {
+    var groups = {};
+    state.players.forEach(function (p, idx) { var k = locKey(p); (groups[k] = groups[k] || []).push(idx); });
+    Object.keys(groups).forEach(function (key) {
+      var arr = groups[key], n = arr.length;
+      arr.forEach(function (idx, k) {
+        var p = state.players[idx], x, y, s = 46, r;
+        if (key === 'start') {
+          var cols = Math.min(4, n), rows = Math.ceil(n / cols), row = Math.floor(k / cols), col = k % cols;
+          var inRow = Math.min(cols, n - row * cols);
+          x = 144 + (col - (inRow - 1) / 2) * 56; y = 170 + (row - (rows - 1) / 2) * 56;
+        } else if (key === 'jail') {
+          var c2 = Math.min(4, n), r2 = Math.ceil(n / c2), rw = Math.floor(k / c2), cl = k % c2, ir = Math.min(c2, n - rw * c2);
+          s = 28; x = 650 + (cl - (ir - 1) / 2) * 26; y = 444 + (rw - (r2 - 1) / 2) * 22;
+        } else if (key === 'boat') {
+          var c3 = Math.min(4, n), rw3 = Math.floor(k / c3), cl3 = k % c3, ir3 = Math.min(c3, n - rw3 * c3);
+          s = 40; x = 157 + (cl3 - (ir3 - 1) / 2) * 44; y = 730 + rw3 * 30;
+        } else {
+          var b = POS[p.pos];
+          if (n === 1) { x = b.x; y = b.y; }
+          else {
+            s = n <= 4 ? 36 : 30; r = n === 2 ? 15 : n <= 4 ? 19 : 24;
+            var ang = -Math.PI / 2 + (2 * Math.PI * k) / n;
+            x = b.x + r * Math.cos(ang); y = b.y + r * Math.sin(ang);
+          }
+        }
+        p.el.style.left = x + 'px'; p.el.style.top = y + 'px'; p.el.style.setProperty('--s', s + 'px');
+      });
+    });
+  }
+  function hop(p) {
+    var b = p.el.firstElementChild;
+    b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop');
+  }
+  function status(t) { $('status').textContent = t; }
+  function statusOf(p) {
+    if (p.pos >= BOAT) return 'Escaped!';
+    if (p.jailed) return 'In jail';
+    if (p.skip > 0) return 'Stuck in sand';
+    return p.pos === 0 ? 'At the start' : 'Space ' + p.pos;
+  }
+  function renderChips() {
+    $('chips').innerHTML = state.players.map(function (p, i) {
+      return '<div class="chip' + (i === state.cur && !state.over ? ' active' : '') + '" role="listitem"><div class="cd">' + duckSVG(p.color) + '<i>' + (i + 1) + '</i></div><div><b>' +
+        esc(p.name) + '</b><small>' + statusOf(p) + '</small></div></div>';
+    }).join('');
+    state.players.forEach(function (p, i) { p.el.classList.toggle('active', i === state.cur && !state.over); });
+    var c = cur();
+    if (c) $('turnDuck').innerHTML = duckSVG(c.color);
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+
+  /* ---------- die ---------- */
+  var PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+  function showFace(v) {
+    var d = $('die'), h = '';
+    for (var k = 0; k < 9; k++) h += '<i' + (PIPS[v].indexOf(k) >= 0 ? ' class="on"' : '') + '></i>';
+    d.innerHTML = h; d.setAttribute('aria-label', 'Die showing ' + v);
+  }
+  function rollDie() {
+    return new Promise(function (res) {
+      var d = $('die'), t0 = Date.now(), dur = reduce ? 200 : 800;
+      d.classList.add('rolling'); sfx.roll();
+      var iv = setInterval(function () {
+        showFace(1 + Math.floor(Math.random() * 6));
+        if (Date.now() - t0 > dur) {
+          clearInterval(iv); d.classList.remove('rolling');
+          var v = 1 + Math.floor(Math.random() * 6); showFace(v); res(v);
+        }
+      }, 90);
+    });
+  }
+
+  /* ---------- modal ---------- */
+  function showModal(o) {
+    return new Promise(function (res) {
+      var m = $('modal'), c = $('modalCard');
+      c.setAttribute('data-tone', o.tone || 'info');
+      $('mIcon').innerHTML = o.icon ? iconFor(o.icon) : '';
+      $('mIcon').hidden = !o.icon;
+      $('mTitle').textContent = o.title; $('mText').textContent = o.text || '';
+      var b = $('mBtns'); b.innerHTML = '';
+      o.buttons.forEach(function (bt, k) {
+        var el = document.createElement('button');
+        el.type = 'button'; el.className = 'bigbtn' + (bt.alt ? ' alt' : ''); el.textContent = bt.label;
+        el.addEventListener('click', function () { m.hidden = true; res(bt.value); });
+        b.appendChild(el);
+      });
+      m.hidden = false;
+      c.style.animation = 'none'; void c.offsetWidth; c.style.animation = '';
+      var first = b.querySelector('button'); if (first) first.focus({ preventScroll: true });
+    });
+  }
+
+  /* ---------- game flow ---------- */
+  function setRoll(on) { $('roll').disabled = !on; }
+
+  async function beginTurn() {
+    var p = cur();
+    renderChips();
+    if (p.skip > 0) {
+      status(p.name + ' is stuck in quicksand and misses this turn.');
+      await sleep(2000);
+      p.skip = 0;
+      state.cur = (state.cur + 1) % state.players.length;
+      return beginTurn();
+    }
+    status(p.jailed ? p.name + ' is in jail. Roll a 6 to get out!' : p.name + "'s turn. Tap ROLL!");
+    state.busy = false; setRoll(true);
+  }
+
+  async function onRoll() {
+    if (state.busy || state.over) return;
+    state.busy = true; setRoll(false); ensureAudio();
+    var game = state, p = cur();
+    var v = await rollDie();
+    if (p.jailed) {
+      if (v === 6) {
+        status(p.name + ' rolled a 6 and broke out of jail!');
+        sfx.good(); p.jailed = false; layout(); renderChips();
+        await sleep(900);
+        await moveBy(p, 6);
+      } else {
+        status(p.name + ' rolled a ' + v + '. Still in jail. Needs a 6!');
+        sfx.bad(); await sleep(1900);
+      }
+    } else {
+      status(p.name + ' hops ' + v + (v === 1 ? ' space!' : ' spaces!'));
+      await sleep(350);
+      await moveBy(p, v);
+    }
+    if (game !== state || state.over) return;
+    state.cur = (state.cur + 1) % state.players.length;
+    beginTurn();
+  }
+
+  async function moveBy(p, n) {
+    for (var k = 0; k < n; k++) {
+      p.pos = Math.min(BOAT, p.pos + 1);
+      layout(); hop(p); sfx.hop();
+      await sleep(280);
+      if (p.pos === BOAT) break;
+    }
+    renderChips();
+    if (p.pos === BOAT) { await doWin(p); return; }
+    await land(p, false);
+  }
+
+  async function land(p, fromCard) {
+    if (QS.indexOf(p.pos) >= 0) {
+      sfx.sand();
+      await showModal({ tone: 'sand', icon: 'sand', title: 'Quicksand!', text: p.name + ' sinks in the goo. Miss your next turn.', buttons: [{ label: 'Uh oh!', value: 1 }] });
+      p.skip = 1; renderChips();
+      return;
+    }
+    if (fromCard) return;
+    if (!state.deck.length) state.deck = buildDeck();
+    var c = state.deck.pop(), info = CARD_INFO[c.type];
+    (c.type === 'fwd' ? sfx.good : c.type === 'back' ? sfx.bad : c.type === 'jail' ? sfx.jail : sfx.gator)();
+    await showModal({ tone: c.type, icon: c.type, title: info.title, text: c.text + info.tail, buttons: [{ label: 'OK!', value: 1 }] });
+    await applyCard(p, c);
+  }
+
+  async function applyCard(p, c) {
+    if (c.type === 'fwd') {
+      p.pos = Math.min(BOAT, p.pos + 1); layout(); hop(p); sfx.hop(); renderChips();
+      await sleep(500);
+      if (p.pos === BOAT) { await doWin(p); return; }
+      await land(p, true);
+    } else if (c.type === 'back') {
+      p.pos = Math.max(0, p.pos - 1); layout(); renderChips();
+      await sleep(500);
+      if (p.pos > 0) await land(p, true);
+    } else if (c.type === 'jail') {
+      p.jailed = true; layout(); renderChips();
+      await sleep(700);
+    } else {
+      p.pos = 0; p.jailed = false; layout(); renderChips();
+      await sleep(700);
+    }
+  }
+
+  async function doWin(p) {
+    state.over = true; renderChips(); sfx.win(); confetti();
+    status(p.name + ' escaped on the boat!');
+    var choice = await showModal({
+      tone: 'win', icon: 'win', title: p.name + ' escapes!', text: 'The boat sails away with a happy quack. Great game!',
+      buttons: [{ label: 'Play again', value: 'again' }, { label: 'New players', value: 'setup', alt: true }]
+    });
+    if (choice === 'again') startGame(state.players.map(function (q) { return q.name; }));
+    else openSetup();
+  }
+
+  function confetti() {
+    if (reduce) return;
+    var box = $('confetti'), h = '';
+    for (var k = 0; k < 70; k++) {
+      h += '<i style="left:' + (Math.random() * 100) + '%;background:' + COLORS[k % COLORS.length] + ';animation-duration:' + (2.2 + Math.random() * 2.4) + 's;animation-delay:' + (Math.random() * 0.8) + 's"></i>';
+    }
+    box.innerHTML = h;
+    setTimeout(function () { box.innerHTML = ''; }, 5500);
+  }
+
+  function startGame(names) {
+    lastNames = names.slice();
+    $('tokens').innerHTML = '';
+    $('confetti').innerHTML = '';
+    state = { players: [], cur: 0, busy: true, over: false, deck: buildDeck() };
+    names.forEach(function (name, i) {
+      var el = document.createElement('div');
+      el.className = 'token';
+      el.innerHTML = '<div class="body">' + duckSVG(COLORS[i]) + '</div><div class="badge">' + (i + 1) + '</div>';
+      $('tokens').appendChild(el);
+      state.players.push({ name: name, color: COLORS[i], pos: 0, jailed: false, skip: 0, el: el });
+    });
+    layout(); showFace(1); setRoll(false);
+    $('setup').hidden = true; $('modal').hidden = true;
+    beginTurn();
+  }
+
+  /* ---------- setup ---------- */
+  var count = 4, typed = [];
+  function renderSetup() {
+    $('counts').innerHTML = [2, 3, 4, 5, 6, 7].map(function (n) {
+      return '<button type="button" class="cnt" data-n="' + n + '" aria-pressed="' + (n === count) + '" aria-label="' + n + ' players">' + n + '</button>';
+    }).join('');
+    var h = '';
+    for (var k = 0; k < count; k++) {
+      h += '<div class="nrow"><div class="nd">' + duckSVG(COLORS[k]) + '<i>' + (k + 1) + '</i></div>' +
+        '<label class="sr" for="nm' + k + '">Name for duck ' + (k + 1) + '</label>' +
+        '<input id="nm' + k + '" type="text" maxlength="12" autocomplete="off" autocapitalize="words" value="' + esc(typed[k] || '') + '" placeholder="Duck ' + (k + 1) + '"></div>';
+    }
+    $('names').innerHTML = h;
+  }
+  function readNames() {
+    for (var k = 0; k < count; k++) { var el = $('nm' + k); if (el) typed[k] = el.value; }
+  }
+  function openSetup() {
+    state.busy = true; setRoll(false);
+    renderSetup(); $('modal').hidden = true; $('setup').hidden = false;
+  }
+
+  $('counts').addEventListener('click', function (e) {
+    var b = e.target.closest('.cnt'); if (!b) return;
+    readNames(); count = +b.getAttribute('data-n'); renderSetup();
+  });
+  $('start').addEventListener('click', function () {
+    readNames(); ensureAudio();
+    var names = [];
+    for (var k = 0; k < count; k++) names.push((typed[k] || '').trim() || 'Duck ' + (k + 1));
+    startGame(names);
+  });
+  $('roll').addEventListener('click', onRoll);
+  $('sound').addEventListener('click', function () {
+    soundOn = !soundOn; this.setAttribute('aria-pressed', String(soundOn)); this.textContent = soundOn ? 'Sound' : 'Muted'; ensureAudio();
+  });
+  $('menu').addEventListener('click', async function () {
+    if (state.busy && !state.over) return;
+    var yes = await showModal({ tone: 'info', title: 'Start a new game?', text: 'The current game will end.', buttons: [{ label: 'Yes, new game', value: true }, { label: 'Keep playing', value: false, alt: true }] });
+    if (yes) openSetup();
+  });
+
+  /* ---------- boot ---------- */
+  buildStage();
+  fit();
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(fit, 250); });
+  if (window.ResizeObserver) new ResizeObserver(fit).observe($('boardWrap'));
+  showFace(1);
+  renderSetup();
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+})();
+</script>
+
+<script>
+/* Embedded favicon / home-screen icon: yellow duck on a teal rounded square */
+window.addEventListener('load', function () {
+function drawDuckIcon(size) {
+  var c = document.createElement('canvas'); c.width = c.height = size;
+  var g = c.getContext('2d'), r = size * 0.22;
+  g.beginPath();
+  g.moveTo(r, 0); g.lineTo(size - r, 0); g.quadraticCurveTo(size, 0, size, r);
+  g.lineTo(size, size - r); g.quadraticCurveTo(size, size, size - r, size);
+  g.lineTo(r, size); g.quadraticCurveTo(0, size, 0, size - r);
+  g.lineTo(0, r); g.quadraticCurveTo(0, 0, r, 0); g.closePath();
+  var bg = g.createLinearGradient(0, 0, 0, size);
+  bg.addColorStop(0, '#1F8FAD'); bg.addColorStop(1, '#0D4559');
+  g.fillStyle = bg; g.fill();
+  g.save(); g.clip();
+  var hl = g.createLinearGradient(0, 0, 0, size * 0.5);
+  hl.addColorStop(0, 'rgba(255,255,255,0.22)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = hl; g.fillRect(0, 0, size, size * 0.5);
+  g.restore();
+  var s = size * 0.66 / 58;
+  g.save();
+  g.translate(size / 2 - 39 * s, size / 2 - 33 * s - size * 0.01);
+  g.scale(s, s);
+  g.fillStyle = 'rgba(0,0,0,0.28)';
+  g.beginPath(); g.ellipse(36, 62, 26, 4.5, 0, 0, Math.PI * 2); g.fill();
+  g.lineJoin = 'round'; g.lineWidth = 3; g.strokeStyle = '#14301F';
+  var body = new Path2D('M10 40 C10 28 22 26 34 28 C44 30 52 36 52 44 C52 54 40 58 28 58 C16 58 10 50 10 40 Z');
+  g.fillStyle = '#F2C230'; g.fill(body); g.stroke(body);
+  g.beginPath(); g.arc(46, 22, 12, 0, Math.PI * 2); g.fill(); g.stroke();
+  var beak = new Path2D('M56 20 L68 24 L56 29 Z');
+  g.fillStyle = '#F28C28'; g.fill(beak); g.lineWidth = 2.5; g.stroke(beak);
+  g.fillStyle = '#14301F'; g.beginPath(); g.arc(49, 19, 2.6, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.45)';
+  g.fill(new Path2D('M18 42 C24 36 34 38 36 46 C30 50 22 50 18 42 Z'));
+  g.restore();
+  return c;
+}
+
+  try {
+    var a = document.createElement('link'); a.rel = 'icon'; a.type = 'image/png'; a.href = drawDuckIcon(64).toDataURL('image/png'); document.head.appendChild(a);
+    var t = document.createElement('link'); t.rel = 'apple-touch-icon'; t.href = drawDuckIcon(180).toDataURL('image/png'); document.head.appendChild(t);
+  } catch (e) {}
+});
+</script>
+</body>
+</html>
