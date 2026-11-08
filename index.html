@@ -144,7 +144,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-off
 
 /* Overlays */
 .overlay {
-  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 50; display: grid; place-items: center; padding: 20px;
   background: rgba(8, 38, 50, .78); overflow-y: auto;
 }
 .card {
@@ -193,7 +193,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-off
   -webkit-user-select: text; user-select: text;
 }
 
-#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+#confetti { position: fixed; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; z-index: 60; overflow: hidden; }
 #confetti i { position: absolute; top: -20px; width: 12px; height: 18px; animation: fall linear forwards; }
 @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
 
@@ -246,6 +246,17 @@ button:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-off
 <div id="confetti" aria-hidden="true"></div>
 
 <script>
+window.addEventListener('error', function (e) {
+  try {
+    var b = document.getElementById('errbar');
+    if (!b) {
+      b = document.createElement('div'); b.id = 'errbar';
+      b.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99;background:#B3261E;color:#fff;font:600 16px/1.3 system-ui,sans-serif;padding:10px 16px';
+      document.body.appendChild(b);
+    }
+    b.textContent = 'Something went wrong: ' + (e.message || 'error') + (e.lineno ? ' (line ' + e.lineno + ')' : '');
+  } catch (x) {}
+});
 (function () {
   'use strict';
   var W = 1780, H = 920, R = 110;
@@ -746,6 +757,7 @@ button:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-off
   buildStage();
   fit();
   window.addEventListener('resize', fit);
+  window.addEventListener('load', function () { fit(); setTimeout(fit, 300); });
   window.addEventListener('orientationchange', function () { setTimeout(fit, 250); });
   if (window.ResizeObserver) new ResizeObserver(fit).observe($('boardWrap'));
   showFace(1);
