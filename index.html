@@ -391,7 +391,7 @@ window.addEventListener('error', function (e) {
       '<rect x="78" y="22" width="104" height="10" rx="3" fill="#2E363E" stroke="' + INK + '" stroke-width="2.5"/>' +
       '<rect x="84" y="30" width="92" height="54" rx="4" fill="#4A5560" stroke="' + INK + '" stroke-width="3"/>' +
       [96, 112, 128, 144, 160].map(function (x) { return '<rect x="' + x + '" y="32" width="6" height="50" fill="#D5DCE3"/>'; }).join('') +
-      '</svg><div class="label" style="left:192px;top:14px"><b style="font-size:30px">JAIL</b><small>Roll a 6 to get out!</small></div></div>';
+      '</svg><div class="label" style="left:192px;top:14px"><b style="font-size:30px">JAIL</b><small>Roll a 6, or wait 2 rolls</small></div></div>';
     /* gator pond */
     h += '<div class="abs" style="left:900px;top:607px;width:340px;height:116px"><svg viewBox="0 0 340 116" width="340" height="116" aria-hidden="true">' +
       '<ellipse cx="170" cy="86" rx="164" ry="28" fill="#F1DFA2" stroke="' + INK + '" stroke-width="3"/>' +
@@ -468,7 +468,7 @@ window.addEventListener('error', function (e) {
   var CARD_INFO = {
     fwd: { title: 'Hop Forward!', tail: ' Move ahead 1 space.' },
     back: { title: 'Slide Back!', tail: ' Move back 1 space.' },
-    jail: { title: 'Go to Jail!', tail: ' Roll a 6 to get out.' },
+    jail: { title: 'Go to Jail!', tail: ' Roll a 6 to get out, or you are free after 2 rolls.' },
     gator: { title: 'Gator Attack!', tail: ' Back to START!' }
   };
   function shuffle(a) {
@@ -528,7 +528,7 @@ window.addEventListener('error', function (e) {
   function status(t) { $('status').textContent = t; }
   function statusOf(p) {
     if (p.pos >= BOAT) return 'Escaped!';
-    if (p.jailed) return 'In jail';
+    if (p.jailed) return 'In jail ' + p.jailRolls + '/2';
     if (p.skip > 0) return 'Stuck in sand';
     return p.pos === 0 ? 'At the start' : 'Space ' + p.pos;
   }
@@ -598,7 +598,7 @@ window.addEventListener('error', function (e) {
       state.cur = (state.cur + 1) % state.players.length;
       return beginTurn();
     }
-    status(p.jailed ? p.name + ' is in jail. Roll a 6 to get out!' : p.name + "'s turn. Tap ROLL!");
+    status(p.jailed ? (p.jailRolls ? p.name + ' is in jail. Last try! You are free after this roll.' : p.name + ' is in jail. Roll a 6 to get out, or you are free after 2 rolls.') : p.name + "'s turn. Tap ROLL!");
     state.busy = false; setRoll(true);
   }
 
@@ -608,14 +608,15 @@ window.addEventListener('error', function (e) {
     var game = state, p = cur();
     var v = await rollDie();
     if (p.jailed) {
-      if (v === 6) {
-        status(p.name + ' rolled a 6 and broke out of jail!');
-        sfx.good(); p.jailed = false; layout(); renderChips();
+      p.jailRolls += 1;
+      if (v === 6 || p.jailRolls >= 2) {
+        status(v === 6 ? p.name + ' rolled a 6 and broke out of jail!' : p.name + ' served the time and is free! Hop ' + v + '!');
+        sfx.good(); p.jailed = false; p.jailRolls = 0; layout(); renderChips();
         await sleep(900);
-        await moveBy(p, 6);
+        await moveBy(p, v);
       } else {
-        status(p.name + ' rolled a ' + v + '. Still in jail. Needs a 6!');
-        sfx.bad(); await sleep(1900);
+        status(p.name + ' rolled a ' + v + '. Still in jail. Free after one more roll!');
+        sfx.bad(); renderChips(); await sleep(1900);
       }
     } else {
       status(p.name + ' hops ' + v + (v === 1 ? ' space!' : ' spaces!'));
@@ -665,7 +666,7 @@ window.addEventListener('error', function (e) {
       await sleep(500);
       if (p.pos > 0) await land(p, true);
     } else if (c.type === 'jail') {
-      p.jailed = true; layout(); renderChips();
+      p.jailed = true; p.jailRolls = 0; layout(); renderChips();
       await sleep(700);
     } else {
       p.pos = 0; p.jailed = false; layout(); renderChips();
@@ -704,7 +705,7 @@ window.addEventListener('error', function (e) {
       el.className = 'token';
       el.innerHTML = '<div class="body">' + duckSVG(COLORS[i]) + '</div><div class="badge">' + (i + 1) + '</div>';
       $('tokens').appendChild(el);
-      state.players.push({ name: name, color: COLORS[i], pos: 0, jailed: false, skip: 0, el: el });
+      state.players.push({ name: name, color: COLORS[i], pos: 0, jailed: false, jailRolls: 0, skip: 0, el: el });
     });
     layout(); showFace(1); setRoll(false);
     $('setup').hidden = true; $('modal').hidden = true;
