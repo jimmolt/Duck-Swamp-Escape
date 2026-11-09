@@ -484,7 +484,7 @@ window.addEventListener('error', function (e) {
   };
 
   /* ---------- cards ---------- */
-  var FWD = ['A friendly turtle gives you a ride!', 'A breeze fills your feathers!', 'You find a shortcut through the reeds!', 'A frog shows you the way!', 'Quack! A tailwind pushes you along!', 'A dragonfly guides you ahead!', 'You catch the lily pad express!'];
+  var FWD = ['A friendly turtle gives you a ride!', 'A breeze fills your feathers!', 'You find a shortcut through the reeds!', 'A frog shows you the way!', 'Quack! A tailwind pushes you along!', 'A dragonfly guides you ahead!', 'You catch the lily pad express!', 'A kind otter gives you a push!', 'You find a shiny feather and skip ahead!', 'The sun comes out and you speed up!', 'Your duck friends cheer you on!', 'A rainbow shows you a shortcut!'];
   var BACK = ['You stopped to chase a butterfly.', 'Oops! You waddled the wrong way.', 'A slow snail is blocking the trail.', 'You dropped your snack and went back for it.', 'A big splash pushes you back.', 'A shiny pebble distracts you.', 'A muddy puddle slows you down.'];
   var JAIL = ['A grumpy heron caught you quacking too loud!', 'You forgot to share the bread crumbs.', 'The swamp sheriff spotted you!', 'You waddled past the Keep Off the Reeds sign.', 'A beaver builder put a fence around you!', 'You got caught napping on the trail!'];
   var GATOR_T = ['Snap! A gator was hiding under the lily pads!', 'Chomp! You swam too close to the pond!', 'A hungry gator lunges from the mud!', 'Splash! Those teeth are real!', 'The gator thought you looked tasty!', 'Yikes! A sneaky gator snapped at you!'];
@@ -501,9 +501,9 @@ window.addEventListener('error', function (e) {
   function buildDeck() {
     var d = [];
     FWD.forEach(function (t) { d.push({ type: 'fwd', text: t }, { type: 'fwd', text: t }); });
-    BACK.forEach(function (t) { d.push({ type: 'back', text: t }, { type: 'back', text: t }); });
-    JAIL.forEach(function (t) { d.push({ type: 'jail', text: t }); });
-    GATOR_T.forEach(function (t) { d.push({ type: 'gator', text: t }); });
+    BACK.slice(0, 4).forEach(function (t) { d.push({ type: 'back', text: t }, { type: 'back', text: t }); });
+    JAIL.slice(0, 4).forEach(function (t) { d.push({ type: 'jail', text: t }); });
+    GATOR_T.slice(0, 4).forEach(function (t) { d.push({ type: 'gator', text: t }); });
     return shuffle(d);
   }
 
